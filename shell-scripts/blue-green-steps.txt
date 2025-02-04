@@ -1,0 +1,131 @@
+#-------------------------------------------------------------
+# Azure DevOps 'Prod-Env' workflow for Blue-Green Deployments
+#-------------------------------------------------------------
+
+A] Define two pipeline variables
+
+resourceGroup=<Should point to the resource group where AKS is deployed>
+aksName=<Name of the AKS cluster>
+
+B] Update 'Agent job'
+# Define/Update the following tasks
+
+0. Task: Helm Init
+# Client & Server Helm versions should match!
+
+1. Task: Azure CLI
+az aks get-credentials -g $(resourceGroup) -n $(aksName)
+
+# currentSlot = Refers to the current production slot
+currentSlot=`(helm get values --all aks-aspnetcore-lab-prod | grep -Po 'productionSlot: \K.*')`
+# currentTag = Refers to the production slot image tag
+currentTag=`(helm get values --all aks-aspnetcore-lab-prod | grep -Po 'productionTag: \K.*')`
+echo "CurrentSlot = $currentSlot"
+
+if [ "$currentSlot" == "blue" ]; then
+    newSlot="green"
+else
+    newSlot="blue"
+fi
+
+echo "##vso[task.setvariable variable=currentSlot]$currentSlot"
+echo "##vso[task.setvariable variable=newSlot]$newSlot"
+
+if [ "$currentSlot" == "blue" ]; then
+   tagBlue="image.tag=$currentTag"
+   tagGreen="image.tag0=$(Build.BuildId)"
+else
+   tagBlue="image.tag=$(Build.BuildId)"
+   tagGreen="image.tag0=$currentTag"
+fi
+
+echo "##vso[task.setvariable variable=tagBlue]$tagBlue"
+echo "##vso[task.setvariable variable=tagGreen]$tagGreen"
+
+2. Task: Bash Script
+# Print slot values
+
+echo "---------------------------------------"
+echo "currentSlot = $(currentSlot)"
+echo "newSlot = $(newSlot)"
+echo "****************************"
+echo "tagBlue = $(tagBlue)"
+echo "tagGreen = $(tagGreen)"
+echo "---------------------------------------"
+
+3. Task: Helm Upgrade
+# Deploy both blue and green slots
+--set image.repository=csulabtest.azurecr.io/claims-api --set "$(tagBlue)" --set "$(tagGreen)" --set sqldb.connectionString="$(sqlDbConnectionString)" --set service.type=ClusterIP --set service.port=8080 --set ingress.enabled=true  --set "$(newSlot)".enabled=true --reuse-values
+
+C] Add an 'Agentless job'
+1. Task: Manual Intervention
+# Use this task to confirm - new deployment or rollback
+
+#------------------------------------------------------------------------
+# 'Instructions' for end users:
+Test the API's deployed to Production and Staging slots, URL's below
+
+Production (current release) => http://claims-api-prod.akslab.com/api/v1/claims
+Staging (new release) http://claims-api-stage.akslab.com/api/v1/claims
+#------------------------------------------------------------------------
+
+D] Add an 'Agent job' to swap the slots
+# Swap slots on resume - success
+# Hint: Run this Agent job only when all previous jobs have succeeded!
+
+1. Task: Azure CLI
+az aks get-credentials -g $(resourceGroup) -n $(aksName)
+
+currentSlot=`(helm get values --all aks-aspnetcore-lab-prod | grep -Po 'productionSlot: \K.*')`
+echo "CurrentSlot = $currentSlot"
+
+if [ "$currentSlot" == "blue" ]; then
+    newSlot="green"
+else
+    newSlot="blue"
+fi
+
+echo "##vso[task.setvariable variable=currentSlot]$currentSlot"
+echo "##vso[task.setvariable variable=newSlot]$newSlot"
+
+2. Task: Bash Script
+echo "---------------------------------------"
+echo "currentSlot = $(currentSlot)"
+echo "newSlot = $(newSlot)"
+echo "****************************"
+
+3. Task: Helm Deploy
+# Set productionSlot to newSlot
+--set productionSlot="$(newSlot)","$(currentSlot)".enabled=false,productionTag=$(Build.BuildId) --reuse-values
+
+E] Add an 'Agent job' to rollback to current release
+# Do not swap slots on reject - failure
+# Hint: Run this Agent job only when a previous job has failed
+
+1. Task: Azure CLI
+az aks get-credentials -g $(resourceGroup) -n $(aksName)
+
+currentSlot=`(helm get values --all aks-aspnetcore-lab-prod | grep -Po 'productionSlot: \K.*')`
+echo "CurrentSlot = $currentSlot"
+
+if [ "$currentSlot" == "blue" ]; then
+    newSlot="green"
+    currentTag=`(helm get values --all aks-aspnetcore-lab-prod | grep -Po 'tag: \K.*')`
+else
+    newSlot="blue"
+    currentTag=`(helm get values --all aks-aspnetcore-lab-prod | grep -Po 'tag0: \K.*')`
+fi
+echo "##vso[task.setvariable variable=currentSlot]$currentSlot"
+echo "##vso[task.setvariable variable=newSlot]$newSlot"
+echo "##vso[task.setvariable variable=currentTag]$currentTag"
+
+2. Task: Bash Script
+echo "---------------------------------------"
+echo "currentSlot = $(currentSlot)"
+echo "newSlot = $(newSlot)"
+echo "currentTag = $(currentTag)"
+echo "****************************"
+
+3. Task: Helm Deploy
+# Rollback to current slot, delete staging infra
+--set "$(newSlot)".enabled=false,productionTag="$(currentTag)" --reuse-values

@@ -1,0 +1,13 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "AzureWebJobsStorage": "{AzureWebJobsStorage}",
+    "AzServiceBusConnection": "",
+    "ClaimsApiEndpoint": "/api/v1/claims",
+    "ClaimsApiMethod": "POST",
+    "AzServiceBusInputQueueName": "claims-req-queue",
+    "AzServiceBusOutputQueueName": "claims-del-queue",
+    "ClaimsApiHost" : "claims-api-svc.development"
+  }
+}

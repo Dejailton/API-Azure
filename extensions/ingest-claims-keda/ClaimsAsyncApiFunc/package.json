@@ -1,0 +1,12 @@
+{
+  "name": "ClaimsAsyncApiFunc",
+  "version": "1.0.0",
+  "description": "This is a sample Azure Functions Application.",
+  "scripts": {
+    "test": "echo \"No tests yet...\""
+  },
+  "author": "Ganesh Radhakrishnan (Microsoft)",
+  "dependencies": {
+    "request": "^2.88.0"
+  }
+}

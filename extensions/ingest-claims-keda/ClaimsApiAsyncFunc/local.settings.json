@@ -1,0 +1,12 @@
+{
+    "IsEncrypted": false,
+    "Values": {
+        "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+        "FUNCTIONS_WORKER_RUNTIME": "dotnet",
+        "ClaimsPostQueue": "claims-req-queue",
+        "ClaimsDelQueue": "claims-del-queue",
+	"AzServiceBusConnection": "",
+	"ClaimsApiHost": "claims-api-svc.development",
+	"ClaimsApiEndpoint": "/api/v1/claims"
+    }
+}
